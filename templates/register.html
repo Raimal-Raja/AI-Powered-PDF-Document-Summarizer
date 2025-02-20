@@ -1,21 +1,54 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Register</title>
-</head>
-<body>
-    <h1>Register</h1>
-    <form method="POST">
-        <div>
-            <label>Username:</label>
-            <input type="text" name="username" required>
+<!-- templates/register.html -->
+{% extends "base.html" %}
+
+{% block title %}Register - Document Summarizer{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="text-center">Register</h2>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username</label>
+                        <input type="text" class="form-control" id="username" name="username" required 
+                               minlength="3" maxlength="150">
+                        <div class="form-text">Username must be between 3 and 150 characters.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="password" name="password" required 
+                               minlength="8">
+                        <div class="form-text">Password must be at least 8 characters long.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="confirm_password" class="form-label">Confirm Password</label>
+                        <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
+                    </div>
+                    <div class="text-center">
+                        <button type="submit" class="btn btn-primary">Register</button>
+                    </div>
+                </form>
+                <div class="text-center mt-3">
+                    <p>Already have an account? <a href="{{ url_for('login') }}">Login here</a></p>
+                </div>
+            </div>
         </div>
-        <div>
-            <label>Password:</label>
-            <input type="password" name="password" required>
-        </div>
-        <button type="submit">Register</button>
-    </form>
-    <p>Already have an account? <a href="/login">Login</a></p>
-</body>
-</html>
+    </div>
+</div>
+
+<script>
+document.querySelector('form').addEventListener('submit', function(event) {
+    const password = document.getElementById('password');
+    const confirmPassword = document.getElementById('confirm_password');
+    
+    if (password.value !== confirmPassword.value) {
+        event.preventDefault();
+        alert('Passwords do not match!');
+    }
+});
+</script>
+{% endblock %}

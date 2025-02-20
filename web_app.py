@@ -1,14 +1,41 @@
-from flask import Flask, request, render_template, redirect, url_for, session
+from flask import Flask, request, render_template, redirect, url_for, session, flash
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 import os
-import tempfile
+import sys
+import subprocess
+
+# Check and install required packages
+def install_required_packages():
+    required_packages = ['PyMuPDF', 'docx2txt']
+    for package in required_packages:
+        try:
+            __import__(package.lower())
+        except ImportError:
+            print(f"Installing {package}...")
+            subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+
+# Install required packages before importing them
+install_required_packages()
+
 import file_handler
-import summarizer as summarizer  # Use the simplified version
+import summarizer
+
+# Create the templates directory if it doesn't exist
+if not os.path.exists('templates'):
+    os.makedirs('templates')
 
 app = Flask(__name__)
-app.secret_key = "your_secret_key"
+app.secret_key = os.urandom(24)  # Generate a random secret key
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///app.db"
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+app.config['UPLOAD_EXTENSIONS'] = ['.pdf', '.docx', '.txt']
+
+# Ensure instance directory exists
+if not os.path.exists('instance'):
+    os.makedirs('instance')
+
 db = SQLAlchemy(app)
 
 class User(db.Model):
@@ -22,218 +49,162 @@ class Summary(db.Model):
     file_name = db.Column(db.String(255), nullable=False)
     summary_text = db.Column(db.Text, nullable=False)
 
-def save_summary(user_id, file_name, summary_text):
-    summary = Summary(user_id=user_id, file_name=file_name, summary_text=summary_text)
-    db.session.add(summary)
-    db.session.commit()
-
-def get_user_summaries(user_id):
-    return Summary.query.filter_by(user_id=user_id).all()
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        username = request.form["username"]
+        password = request.form["password"]
+        
+        user = User.query.filter_by(username=username).first()
+        if user and check_password_hash(user.password, password):
+            session["user_id"] = user.id
+            flash("Login successful!", "success")
+            return redirect(url_for("upload_page"))
+        else:
+            flash("Invalid username or password", "error")
+    
+    return render_template("login.html")
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
         username = request.form["username"]
         password = request.form["password"]
-        # Fix: Change "sha256" to "pbkdf2:sha256"
-        hashed_password = generate_password_hash(password, method="pbkdf2:sha256")
-        new_user = User(username=username, password=hashed_password)
-        db.session.add(new_user)
+        
+        if User.query.filter_by(username=username).first():
+            flash("Username already exists", "error")
+            return redirect(url_for("register"))
+            
+        user = User(username=username, password=generate_password_hash(password))
+        db.session.add(user)
         db.session.commit()
+        
+        flash("Registration successful! Please login.", "success")
         return redirect(url_for("login"))
+    
     return render_template("register.html")
-
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    if request.method == "POST":
-        username = request.form["username"]
-        password = request.form["password"]
-        user = User.query.filter_by(username=username).first()
-        if user and check_password_hash(user.password, password):
-            session["user_id"] = user.id
-            return redirect(url_for("upload_page"))
-    return render_template("login.html")
 
 @app.route("/logout")
 def logout():
     session.pop("user_id", None)
+    flash("You have been logged out", "info")
     return redirect(url_for("login"))
 
-# @app.route("/", methods=["GET", "POST"])
-# def upload_page():
-#     if "user_id" not in session:
-#         return redirect(url_for("login"))
-    
-#     error_message = None
-    
-#     if request.method == "POST":
-#         if "files" not in request.files:
-#             return render_template("upload.html", error="No files uploaded", user_summaries=get_user_summaries(session["user_id"]))
-        
-#         uploaded_files = request.files.getlist("files")
-#         if not uploaded_files or uploaded_files[0].filename == '':
-#             return render_template("upload.html", error="No files selected", user_summaries=get_user_summaries(session["user_id"]))
-            
-#         temp_dir = tempfile.mkdtemp()
-#         extracted_texts = {}
-#         errors = []
-        
-#         for file in uploaded_files:
-#             try:
-#                 file_path = os.path.join(temp_dir, file.filename)
-#                 file.save(file_path)
-                
-#                 if file.filename.lower().endswith(".pdf"):
-#                     text = file_handler.extract_text_from_pdf(file_path)
-#                 elif file.filename.lower().endswith(".docx"):
-#                     text = file_handler.extract_text_from_docx(file_path)
-#                 elif file.filename.lower().endswith(".txt"):
-#                     with open(file_path, "r", encoding="utf-8") as f:
-#                         text = f.read()
-#                 else:
-#                     errors.append(f"Unsupported file format: {file.filename}")
-#                     continue
-                
-#                 if text and not (isinstance(text, str) and text.startswith("Error:")):
-#                     extracted_texts[file.filename] = text
-#                 else:
-#                     errors.append(f"Failed to extract text from {file.filename}: {text}")
-#             except Exception as e:
-#                 errors.append(f"Error processing {file.filename}: {str(e)}")
-        
-#         if not extracted_texts:
-#             error_message = "Could not extract text from any of the uploaded files."
-#             if errors:
-#                 error_message += " Errors: " + " | ".join(errors)
-#             return render_template("upload.html", error=error_message, user_summaries=get_user_summaries(session["user_id"]))
-        
-#         try:
-#             summary_type = request.form.get("summary_type", "extractive")
-#             summaries = summarizer.batch_summarization(
-#                 extracted_texts, 
-#                 summary_type=summary_type,
-#                 num_sentences=int(request.form.get("num_sentences", 5)),
-#                 max_length=int(request.form.get("max_length", 150))
-#             )
-            
-#             for file_name, summary_text in summaries.items():
-#                 save_summary(session["user_id"], file_name, summary_text)
-            
-#             return render_template("results.html", summaries=summaries, errors=errors if errors else None)
-#         except Exception as e:
-#             error_message = f"Error generating summaries: {str(e)}"
-#             return render_template("upload.html", error=error_message, user_summaries=get_user_summaries(session["user_id"]))
-    
-#     user_summaries = get_user_summaries(session["user_id"])
-#     return render_template("upload.html", user_summaries=user_summaries, error=error_message)
-
-
-
+def allowed_file(filename):
+    return '.' in filename and \
+           os.path.splitext(filename)[1].lower() in app.config['UPLOAD_EXTENSIONS']
 
 @app.route("/", methods=["GET", "POST"])
 def upload_page():
     if "user_id" not in session:
         return redirect(url_for("login"))
     
-    error_message = None
-    dependency_warnings = []
-    
-    # Check for required dependencies
-    if not file_handler.PYMUPDF_AVAILABLE:
-        dependency_warnings.append("PDF processing requires PyMuPDF. Install with 'pip install PyMuPDF'")
-    if not file_handler.DOCX2TXT_AVAILABLE:
-        dependency_warnings.append("DOCX processing requires docx2txt. Install with 'pip install docx2txt'")
-    
     if request.method == "POST":
-        if "files" not in request.files:
-            return render_template("upload.html", 
-                                  error="No files uploaded", 
-                                  warnings=dependency_warnings,
-                                  user_summaries=get_user_summaries(session["user_id"]))
-        
-        uploaded_files = request.files.getlist("files")
-        if not uploaded_files or uploaded_files[0].filename == '':
-            return render_template("upload.html", 
-                                  error="No files selected", 
-                                  warnings=dependency_warnings,
-                                  user_summaries=get_user_summaries(session["user_id"]))
+        if "file" not in request.files:
+            flash("No file selected", "error")
+            return redirect(request.url)
             
-        temp_dir = tempfile.mkdtemp()
-        extracted_texts = {}
-        errors = []
-        
-        for file in uploaded_files:
-            try:
-                file_path = os.path.join(temp_dir, file.filename)
-                file.save(file_path)
+        file = request.files["file"]
+        if file.filename == "":
+            flash("No file selected", "error")
+            return redirect(request.url)
+            
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            
+            # Create uploads directory if it doesn't exist
+            upload_dir = os.path.join(app.instance_path, 'uploads')
+            if not os.path.exists(upload_dir):
+                os.makedirs(upload_dir)
                 
-                if file.filename.lower().endswith(".pdf"):
-                    if not file_handler.PYMUPDF_AVAILABLE:
-                        errors.append(f"Cannot process PDF {file.filename}: PyMuPDF not installed")
-                        continue
-                    text = file_handler.extract_text_from_pdf(file_path)
-                elif file.filename.lower().endswith(".docx"):
-                    if not file_handler.DOCX2TXT_AVAILABLE:
-                        errors.append(f"Cannot process DOCX {file.filename}: docx2txt not installed")
-                        continue
-                    text = file_handler.extract_text_from_docx(file_path)
-                elif file.filename.lower().endswith(".txt"):
-                    with open(file_path, "r", encoding="utf-8") as f:
-                        text = f.read()
-                else:
-                    errors.append(f"Unsupported file format: {file.filename}")
-                    continue
-                
-                if text and not (isinstance(text, str) and text.startswith("Error:")):
-                    extracted_texts[file.filename] = text
-                else:
-                    errors.append(f"Failed to extract text from {file.filename}: {text}")
-            except Exception as e:
-                errors.append(f"Error processing {file.filename}: {str(e)}")
-        
-        if not extracted_texts:
-            error_message = "Could not extract text from any of the uploaded files."
-            if errors:
-                error_message += " Errors: " + " | ".join(errors)
-            return render_template("upload.html", 
-                                  error=error_message, 
-                                  warnings=dependency_warnings,
-                                  user_summaries=get_user_summaries(session["user_id"]))
-        
-        try:
-            summary_type = request.form.get("summary_type", "extractive")
-            summaries = summarizer.batch_summarization(
-                extracted_texts, 
-                summary_type=summary_type,
-                num_sentences=int(request.form.get("num_sentences", 5)),
-                max_length=int(request.form.get("max_length", 150))
+            file_path = os.path.join(upload_dir, filename)
+            file.save(file_path)
+            
+            # Process the file based on its type
+            if filename.lower().endswith('.pdf'):
+                text = file_handler.extract_text_from_pdf(file_path)
+            elif filename.lower().endswith('.docx'):
+                text = file_handler.extract_text_from_docx(file_path)
+            elif filename.lower().endswith('.txt'):
+                text = file_handler.extract_text_from_txt(file_path)
+            else:
+                flash("Unsupported file type", "error")
+                return redirect(request.url)
+            
+            # Generate summary
+            summary_text = summarizer.extractive_summary(text)
+            
+            # Save summary to database
+            new_summary = Summary(
+                user_id=session["user_id"],
+                file_name=filename,
+                summary_text=summary_text
             )
+            db.session.add(new_summary)
+            db.session.commit()
             
-            for file_name, summary_text in summaries.items():
-                save_summary(session["user_id"], file_name, summary_text)
+            flash("File processed successfully!", "success")
+            return render_template("results.html", summary=summary_text, filename=filename)
             
-            return render_template("results.html", 
-                                  summaries=summaries, 
-                                  warnings=dependency_warnings,
-                                  errors=errors if errors else None)
-        except Exception as e:
-            error_message = f"Error generating summaries: {str(e)}"
-            return render_template("upload.html", 
-                                  error=error_message, 
-                                  warnings=dependency_warnings,
-                                  user_summaries=get_user_summaries(session["user_id"]))
+        else:
+            flash("Unsupported file type", "error")
+            return redirect(request.url)
     
-    user_summaries = get_user_summaries(session["user_id"])
-    return render_template("upload.html", 
-                          user_summaries=user_summaries, 
-                          warnings=dependency_warnings,
-                          error=error_message)
-# FIX: Create a proper app context for database initialization
+    # GET request - show upload form
+    return render_template("upload.html")
+
+@app.errorhandler(404)
+def page_not_found(e):
+    return render_template('404.html'), 404
+
+@app.errorhandler(413)
+def file_too_large(e):
+    flash("File too large. Maximum size is 16MB.", "error")
+    return redirect(url_for('upload_page'))
+
+def create_demo_user():
+    """Create a demo user if no users exist"""
+    if not User.query.first():
+        demo_user = User(
+            username="demo",
+            password=generate_password_hash("demo123")
+        )
+        db.session.add(demo_user)
+        db.session.commit()
+        print("Demo user created - Username: demo, Password: demo123")
+
 def initialize_database():
+    """Initialize the database and create tables"""
     with app.app_context():
         db.create_all()
+        create_demo_user()
         print("Database initialized successfully!")
 
+def create_template_files():
+    """Create template files if they don't exist"""
+    templates_dir = os.path.join(os.path.dirname(__file__), 'templates')
+    if not os.path.exists(templates_dir):
+        os.makedirs(templates_dir)
+    
+    # List of template files that should exist
+    template_files = ['base.html', 'login.html', 'register.html', 'upload.html', 'results.html']
+    
+    for template in template_files:
+        template_path = os.path.join(templates_dir, template)
+        if not os.path.exists(template_path):
+            with open(template_path, 'w') as f:
+                f.write('<!-- Template file created by initialization -->')
+            print(f"Created template file: {template}")
+
 if __name__ == "__main__":
-    initialize_database()  # Initialize DB in app context
-    app.run(debug=True)
+    try:
+        # Initialize everything
+        initialize_database()
+        create_template_files()
+        
+        # Start the Flask application
+        print("Starting Flask application...")
+        app.run(debug=True, port=5000)
+    except Exception as e:
+        print(f"Error starting application: {str(e)}")
+        sys.exit(1)
