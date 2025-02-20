@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Document Summarizer</title>
+</head>
+<body>
+    <h1>Document Summarizer</h1>
+    
+    {% if error %}
+    <div style="color: red;">
+        <p>{{ error }}</p>
+    </div>
+    {% endif %}
+    
+    <form method="POST" enctype="multipart/form-data">
+        <div>
+            <label>Upload Documents:</label>
+            <input type="file" name="files" multiple accept=".pdf,.docx,.txt">
+        </div>
+        <div>
+            <label>Summary Type:</label>
+            <select name="summary_type">
+                <option value="extractive">Extractive (Key Sentences)</option>
+                <option value="abstractive">Abstractive (AI-Generated)</option>
+            </select>
+        </div>
+        <div>
+            <label>Number of Sentences (Extractive):</label>
+            <input type="number" name="num_sentences" value="5" min="1" max="20">
+        </div>
+        <div>
+            <label>Max Summary Length (Abstractive):</label>
+            <input type="number" name="max_length" value="150" min="50" max="500">
+        </div>
+        <button type="submit">Generate Summaries</button>
+    </form>
+    
+    <h2>Your Previous Summaries:</h2>
+    {% if user_summaries %}
+        <ul>
+        {% for summary in user_summaries %}
+            <li>
+                <strong>{{ summary.file_name }}</strong>
+                <p>{{ summary.summary_text }}</p>
+            </li>
+        {% endfor %}
+        </ul>
+    {% else %}
+        <p>No summaries yet.</p>
+    {% endif %}
+    {% if warnings %}
+<div class="alert alert-warning">
+  <h4>Missing Dependencies:</h4>
+  <ul>
+    {% for warning in warnings %}
+      <li>{{ warning }}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+    <p><a href="/logout">Logout</a></p>
+</body>
+</html>

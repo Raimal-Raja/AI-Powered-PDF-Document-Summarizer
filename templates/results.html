@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Summary Results</title>
+</head>
+<body>
+    <h1>Summary Results</h1>
+    
+    {% if errors %}
+    <div style="color: orange;">
+        <h3>Warnings:</h3>
+        <ul>
+        {% for error in errors %}
+            <li>{{ error }}</li>
+        {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+    
+    <div>
+        {% for file_name, summary_text in summaries.items() %}
+            <div style="margin-bottom: 20px;">
+                <h2>{{ file_name }}</h2>
+                <p>{{ summary_text }}</p>
+            </div>
+        {% endfor %}
+    </div>
+    
+    <p><a href="/">Back to Upload</a></p>
+</body>
+</html>
