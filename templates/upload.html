@@ -1,63 +1,56 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Document Summarizer</title>
-</head>
-<body>
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
     <h1>Document Summarizer</h1>
     
-    {% if error %}
-    <div style="color: red;">
-        <p>{{ error }}</p>
-    </div>
-    {% endif %}
-    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
     <form method="POST" enctype="multipart/form-data">
-        <div>
-            <label>Upload Documents:</label>
-            <input type="file" name="files" multiple accept=".pdf,.docx,.txt">
+        <div class="form-group">
+            <label for="file">Upload Documents:</label>
+            <input type="file" class="form-control" id="file" name="file" required>
         </div>
-        <div>
-            <label>Summary Type:</label>
-            <select name="summary_type">
+
+        <div class="form-group">
+            <label for="summary_type">Summary Type:</label>
+            <select class="form-control" id="summary_type" name="summary_type">
                 <option value="extractive">Extractive (Key Sentences)</option>
-                <option value="abstractive">Abstractive (AI-Generated)</option>
+                <option value="abstractive">Abstractive</option>
             </select>
         </div>
-        <div>
-            <label>Number of Sentences (Extractive):</label>
-            <input type="number" name="num_sentences" value="5" min="1" max="20">
+
+        <div class="form-group">
+            <label for="num_sentences">Number of Sentences (Extractive):</label>
+            <input type="number" class="form-control" id="num_sentences" name="num_sentences" value="5" min="1" max="20">
         </div>
-        <div>
-            <label>Max Summary Length (Abstractive):</label>
-            <input type="number" name="max_length" value="150" min="50" max="500">
+
+        <div class="form-group">
+            <label for="max_length">Max Summary Length (Abstractive):</label>
+            <input type="number" class="form-control" id="max_length" name="max_length" value="150" min="50" max="500">
         </div>
-        <button type="submit">Generate Summaries</button>
+
+        <button type="submit" class="btn btn-primary">Generate Summaries</button>
     </form>
-    
-    <h2>Your Previous Summaries:</h2>
-    {% if user_summaries %}
-        <ul>
-        {% for summary in user_summaries %}
-            <li>
-                <strong>{{ summary.file_name }}</strong>
-                <p>{{ summary.summary_text }}</p>
-            </li>
+
+    <h2 class="mt-4">Your Previous Summaries:</h2>
+    {% if summaries %}
+        {% for summary in summaries %}
+            <div class="card mt-3">
+                <div class="card-body">
+                    <h5 class="card-title">{{ summary.file_name }}</h5>
+                    <p class="card-text">{{ summary.summary_text }}</p>
+                </div>
+            </div>
         {% endfor %}
-        </ul>
     {% else %}
         <p>No summaries yet.</p>
     {% endif %}
-    {% if warnings %}
-<div class="alert alert-warning">
-  <h4>Missing Dependencies:</h4>
-  <ul>
-    {% for warning in warnings %}
-      <li>{{ warning }}</li>
-    {% endfor %}
-  </ul>
 </div>
-{% endif %}
-    <p><a href="/logout">Logout</a></p>
-</body>
-</html>
+{% endblock %}

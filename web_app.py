@@ -8,13 +8,18 @@ import subprocess
 
 # Check and install required packages
 def install_required_packages():
-    required_packages = ['PyMuPDF', 'docx2txt']
+    """Check and install required packages before execution."""
+    required_packages = ['pdfminer.six', 'python-docx']
     for package in required_packages:
         try:
-            __import__(package.lower())
+            __import__(package.replace("-", "_"))
         except ImportError:
-            print(f"Installing {package}...")
-            subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+            print(f"Attempting to install {package}...")
+            try:
+                subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+                print(f"{package} installed successfully.")
+            except Exception as e:
+                print(f"Error installing {package}: {str(e)}")
 
 # Install required packages before importing them
 install_required_packages()
@@ -98,59 +103,93 @@ def allowed_file(filename):
 def upload_page():
     if "user_id" not in session:
         return redirect(url_for("login"))
-    
+
     if request.method == "POST":
+        summary_type = request.form.get("summary_type", "extractive")
+        num_sentences = int(request.form.get("num_sentences", 5) or 5)
+        max_length = int(request.form.get("max_length", 150) or 150)
+
         if "file" not in request.files:
             flash("No file selected", "error")
             return redirect(request.url)
-            
+
         file = request.files["file"]
         if file.filename == "":
             flash("No file selected", "error")
             return redirect(request.url)
-            
+
         if file and allowed_file(file.filename):
             filename = secure_filename(file.filename)
-            
-            # Create uploads directory if it doesn't exist
             upload_dir = os.path.join(app.instance_path, 'uploads')
             if not os.path.exists(upload_dir):
                 os.makedirs(upload_dir)
-                
+
             file_path = os.path.join(upload_dir, filename)
             file.save(file_path)
-            
-            # Process the file based on its type
-            if filename.lower().endswith('.pdf'):
-                text = file_handler.extract_text_from_pdf(file_path)
-            elif filename.lower().endswith('.docx'):
-                text = file_handler.extract_text_from_docx(file_path)
-            elif filename.lower().endswith('.txt'):
-                text = file_handler.extract_text_from_txt(file_path)
-            else:
-                flash("Unsupported file type", "error")
+
+            text = None
+            summary_text = None
+
+            try:
+                if filename.lower().endswith('.pdf'):
+                    text = file_handler.extract_text_from_pdf(file_path)
+                elif filename.lower().endswith('.docx'):
+                    text = file_handler.extract_text_from_docx(file_path)
+                elif filename.lower().endswith('.txt'):
+                    text = file_handler.extract_text_from_txt(file_path)
+                else:
+                    flash("Unsupported file type", "error")
+                    return redirect(request.url)
+
+                # Debug: Log extracted text length
+                print(f"Extracted text length: {len(text) if text else 0}")
+
+                # Validate extracted text
+                if not text or text.startswith("Error") or "Error" in text or len(text.strip()) < 10:
+                    flash(f"Text extraction failed: {text[:300]}...", "error")
+                    return redirect(request.url)
+
+                # Debug: Print first 300 characters of extracted text
+                print(f"First 300 chars of extracted text: {text[:300]}")
+
+                # Generate summary
+                if summary_type == "abstractive":
+                    summary_text = summarizer.abstractive_summary(text, max_length)
+                else:
+                    summary_text = summarizer.extractive_summary(text, num_sentences)
+
+                # Debug: Print first 300 characters of summary
+                print(f"First 300 chars of generated summary: {summary_text[:300] if summary_text else 'None'}")
+
+                # Check summary validity
+                if not summary_text or len(summary_text.strip()) < 10:
+                    flash("Generated summary is too short or empty.", "error")
+                    return redirect(request.url)
+
+                # Save summary to database
+                new_summary = Summary(
+                    user_id=session["user_id"],
+                    file_name=filename,
+                    summary_text=summary_text
+                )
+                db.session.add(new_summary)
+                db.session.commit()
+
+                flash("File processed successfully!", "success")
+                return render_template("results.html", summary=summary_text, filename=filename)
+
+            except Exception as e:
+                import traceback
+                error_trace = traceback.format_exc()
+                print(f"Error processing file: {str(e)}")
+                print(f"Traceback: {error_trace}")
+                flash(f"Error processing file: {str(e)}", "error")
                 return redirect(request.url)
-            
-            # Generate summary
-            summary_text = summarizer.extractive_summary(text)
-            
-            # Save summary to database
-            new_summary = Summary(
-                user_id=session["user_id"],
-                file_name=filename,
-                summary_text=summary_text
-            )
-            db.session.add(new_summary)
-            db.session.commit()
-            
-            flash("File processed successfully!", "success")
-            return render_template("results.html", summary=summary_text, filename=filename)
-            
+
         else:
             flash("Unsupported file type", "error")
             return redirect(request.url)
-    
-    # GET request - show upload form
+
     return render_template("upload.html")
 
 @app.errorhandler(404)

@@ -18,22 +18,16 @@ except ImportError:
     DOCX2TXT_AVAILABLE = False
 
 def extract_text_from_pdf(pdf_path):
-    """Extract text from PDF with robust error handling"""
+    """Extract text from a PDF file, handling errors gracefully."""
     if not PYMUPDF_AVAILABLE:
-        print(f"PyMuPDF not available. Cannot extract text from {pdf_path}")
-        # Return empty string instead of error message to allow processing to continue
-        return "PDF text extraction requires PyMuPDF library. Please install with 'pip install PyMuPDF'."
-    
+        return "Error: PyMuPDF is required. Install it with 'pip install pymupdf'."
+
     try:
         doc = fitz.open(pdf_path)
-        text = ""
-        for page in doc:
-            text += page.get_text()
-        return text
+        text = "\n".join([page.get_text() for page in doc])
+        return text if text.strip() else "Error: No extractable text found in PDF."
     except Exception as e:
-        error_msg = f"Error extracting text from PDF {pdf_path}: {str(e)}"
-        print(error_msg)
-        return error_msg
+        return f"Error extracting text from PDF {pdf_path}: {str(e)}"
 
 def extract_text_from_docx(docx_path):
     """Extract text from DOCX with robust error handling"""

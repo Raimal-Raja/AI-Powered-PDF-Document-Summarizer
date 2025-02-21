@@ -1,70 +1,88 @@
 import re
 import random
 import nltk
-try:
-    nltk.data.find('tokenizers/punkt')
-except LookupError:
-    nltk.download('punkt')
+import os
+
+def ensure_nltk_data():
+    """Ensure NLTK data is properly installed and uses the correct path."""
+    nltk_data_dir = os.path.join(os.getcwd(), 'nltk_data')
+    if not os.path.exists(nltk_data_dir):
+        os.makedirs(nltk_data_dir)
+
+    # Add to NLTK's data path
+    nltk.data.path.append(nltk_data_dir)
+
+    # Ensure 'punkt' is available
+    try:
+        nltk.data.find('tokenizers/punkt')
+    except LookupError:
+        print("Downloading NLTK 'punkt' tokenizer...")
+        nltk.download('punkt', download_dir=nltk_data_dir)
+        print("NLTK 'punkt' tokenizer downloaded successfully.")
+
+# Initialize NLTK data correctly
+ensure_nltk_data()
+
+
 from nltk.tokenize import sent_tokenize
 
 def extractive_summary(text, num_sentences=5):
-    """Extract key sentences from text"""
-    # Get sentences
-    sentences = sent_tokenize(text)
-    
+    """Extract key sentences from text."""
+    try:
+        sentences = sent_tokenize(text)
+    except Exception as e:
+        print(f"Sentence tokenization failed: {str(e)}")
+        sentences = [s.strip() for s in text.split(".") if s.strip()]
+
+    if not sentences:
+        print("No meaningful text found to summarize.")
+        return "No meaningful text found to summarize."
+
     if len(sentences) <= num_sentences:
         return " ".join(sentences)
-    
-    # Simple scoring - longer sentences with important words tend to be more informative
+
     word_frequencies = {}
     for sentence in sentences:
         for word in sentence.lower().split():
             if word not in word_frequencies:
                 word_frequencies[word] = 0
             word_frequencies[word] += 1
-    
-    # Calculate sentence scores
+
     sentence_scores = {}
     for i, sentence in enumerate(sentences):
-        sentence_scores[i] = 0
-        words = sentence.lower().split()
-        if len(words) > 3:  # Ignore very short sentences
-            for word in words:
-                if word in word_frequencies:
-                    sentence_scores[i] += word_frequencies[word]
-            sentence_scores[i] = sentence_scores[i] / len(words)
-    
-    # Get top sentences
+        sentence_scores[i] = sum(word_frequencies.get(word, 0) for word in sentence.lower().split()) / len(sentence.split())
+
     top_indices = sorted(sentence_scores, key=sentence_scores.get, reverse=True)[:num_sentences]
-    top_indices.sort()  # Maintain original order
-    
+    top_indices.sort()
+
     return " ".join([sentences[i] for i in top_indices])
 
 def abstractive_summary(text, max_length=150):
-    """Simple abstractive summary without deep learning models"""
-    # This is a simplified version without T5
-    sentences = sent_tokenize(text)
-    
-    # Get first few sentences as the most important info is often at the beginning
+    """Simple abstractive summary without deep learning models."""
+    try:
+        sentences = sent_tokenize(text)
+    except Exception as e:
+        print(f"Sentence tokenization failed: {str(e)}")
+        sentences = [s.strip() for s in text.split(".") if s.strip()]
+
     if not sentences:
-        return ""
-        
+        print("No meaningful text found to summarize.")
+        return "No meaningful text found to summarize."
+
     first_sentence = sentences[0]
-    
-    # Get a few key sentences from the middle and end if available
     selected_sentences = [first_sentence]
+
     if len(sentences) > 2:
         mid_idx = len(sentences) // 2
         selected_sentences.append(sentences[mid_idx])
     if len(sentences) > 4:
         selected_sentences.append(sentences[-2])
-    
+
     summary = " ".join(selected_sentences)
-    
-    # Truncate if too long
+
     if len(summary) > max_length:
         summary = summary[:max_length-3] + "..."
-        
+
     return summary
 
 def batch_summarization(texts, summary_type="extractive", num_sentences=5, max_length=150):
