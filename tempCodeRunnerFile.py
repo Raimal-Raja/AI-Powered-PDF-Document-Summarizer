@@ -1,1 +1,1 @@
-fitz
+flask_sqlalchemy
