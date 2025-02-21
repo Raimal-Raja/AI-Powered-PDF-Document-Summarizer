@@ -1,77 +1,66 @@
 import os
 import traceback
 
-# Try to import PyMuPDF, but provide fallback
 try:
-    import fitz  # PyMuPDF
-    PYMUPDF_AVAILABLE = True
+    import pdfplumber
+    PDFPLUMBER_AVAILABLE = True
 except ImportError:
-    print("WARNING: PyMuPDF not available. PDF extraction will be limited.")
-    PYMUPDF_AVAILABLE = False
+    print("WARNING: pdfplumber not available. Install with 'pip install pdfplumber'.")
+    PDFPLUMBER_AVAILABLE = False
 
-# Try to import docx2txt
 try:
-    import docx2txt
-    DOCX2TXT_AVAILABLE = True
+    from docx import Document
+    DOCX_AVAILABLE = True
 except ImportError:
-    print("WARNING: docx2txt not available. DOCX extraction will be limited.")
-    DOCX2TXT_AVAILABLE = False
+    print("WARNING: python-docx not available. Install with 'pip install python-docx'.")
+    DOCX_AVAILABLE = False
 
 def extract_text_from_pdf(pdf_path):
-    """Extract text from a PDF file, handling errors gracefully."""
-    if not PYMUPDF_AVAILABLE:
-        return "Error: PyMuPDF is required. Install it with 'pip install pymupdf'."
-
-    try:
-        doc = fitz.open(pdf_path)
-        text = "\n".join([page.get_text() for page in doc])
-        return text if text.strip() else "Error: No extractable text found in PDF."
-    except Exception as e:
-        return f"Error extracting text from PDF {pdf_path}: {str(e)}"
-
-def extract_text_from_docx(docx_path):
-    """Extract text from DOCX with robust error handling"""
-    if not DOCX2TXT_AVAILABLE:
-        return f"Error: docx2txt not available. Cannot extract text from {docx_path}"
+    """Extract text from PDF using pdfplumber."""
+    if not PDFPLUMBER_AVAILABLE:
+        return "Error: pdfplumber required. Install with 'pip install pdfplumber'."
     
     try:
-        return docx2txt.process(docx_path)
+        with pdfplumber.open(pdf_path) as pdf:
+            text = "\n".join(page.extract_text() or "" for page in pdf.pages)
+        return text if text.strip() else "Error: No extractable text in PDF."
     except Exception as e:
-        error_msg = f"Error extracting text from DOCX {docx_path}: {str(e)}"
-        print(error_msg)
-        return error_msg
+        return f"Error extracting PDF {pdf_path}: {str(e)}"
+
+def extract_text_from_docx(docx_path):
+    """Extract text from DOCX using python-docx."""
+    if not DOCX_AVAILABLE:
+        return "Error: python-docx required. Install with 'pip install python-docx'."
+    
+    try:
+        doc = Document(docx_path)
+        text = "\n".join(para.text for para in doc.paragraphs if para.text.strip())
+        return text if text.strip() else "Error: No extractable text in DOCX."
+    except Exception as e:
+        return f"Error extracting DOCX {docx_path}: {str(e)}"
 
 def extract_text_from_txt(txt_path):
-    """Extract text from TXT with robust error handling"""
-    try:
-        with open(txt_path, "r", encoding="utf-8") as file:
-            return file.read()
-    except UnicodeDecodeError:
-        # Try with different encodings if UTF-8 fails
+    """Extract text from TXT with robust encoding handling."""
+    encodings = ['utf-8', 'latin-1', 'utf-16']
+    for encoding in encodings:
         try:
-            with open(txt_path, "r", encoding="latin-1") as file:
-                return file.read()
-        except Exception as e:
-            error_msg = f"Error extracting text from TXT {txt_path}: {str(e)}"
-            print(error_msg)
-            return error_msg
-    except Exception as e:
-        error_msg = f"Error extracting text from TXT {txt_path}: {str(e)}"
-        print(error_msg)
-        return error_msg
+            with open(txt_path, "r", encoding=encoding) as file:
+                return file.read().strip()
+        except Exception:
+            continue
+    return f"Error extracting TXT {txt_path}: All encoding attempts failed."
 
 def batch_extract_text(folder_path):
-    """Extract text from all supported files in a folder"""
+    """Extract text from all files in a folder."""
     extracted_texts = {}
     if not os.path.exists(folder_path):
         return {"error": f"Folder not found: {folder_path}"}
     
     for file_name in os.listdir(folder_path):
         file_path = os.path.join(folder_path, file_name)
-        
         if not os.path.isfile(file_path):
             continue
-            
+        
         try:
             if file_name.lower().endswith(".pdf"):
                 extracted_texts[file_name] = extract_text_from_pdf(file_path)
@@ -81,6 +70,6 @@ def batch_extract_text(folder_path):
                 extracted_texts[file_name] = extract_text_from_txt(file_path)
         except Exception as e:
             extracted_texts[file_name] = f"Error processing {file_name}: {str(e)}"
-            print(f"Error processing {file_name}: {traceback.format_exc()}")
-            
+            print(f"Error: {traceback.format_exc()}")
+    
     return extracted_texts
