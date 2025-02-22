@@ -26,8 +26,8 @@ Welcome to the **Document Summarizer Web Application**, a lightweight, open-sour
 ### Setup
 1. Clone this repository:
    ```bash
-   git clone https://github.com/yourusername/DocSummarizer.git
-   cd DocSummarizer
+   git clone https://github.com/Raimal-Raja/AI-Powered-PDF-Document-Summarizer.git
+   cd AI-Powered-PDF-Document-Summarizer
    ```
 
 2. Create a virtual environment (recommended):
@@ -56,7 +56,7 @@ Welcome to the **Document Summarizer Web Application**, a lightweight, open-sour
    python app.py
    ```
 
-6. Open your browser and navigate to `http://127.0.0.1:5000`. Use the demo credentials `demo/demo123` to log in and start summarizing documents.
+6. Open your browser and navigate to `http://127.0.0.1:5000`. Use the demo credentials `Raimal/Raimal123` to log in and start summarizing documents.
 
 ## Usage
 - **Upload a File**: Use the web interface to upload PDF, DOCX, or TXT files from your local machine.
@@ -125,11 +125,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Special thanks to the maintainers of NLTK, Flask, `pdfplumber`, `python-docx`, and Bootstrap for their invaluable tools.
 
 ## Issues and Support
-If you encounter any issues, please open an issue on [GitHub Issues](https://github.com/yourusername/DocSummarizer/issues) with detailed reproduction steps. For feature requests or questions, contact the maintainers via email or pull requests.
-
----
-
-### Notes
-- Replace `yourusername/DocSummarizer` with your actual GitHub username and repository name.
-- Add a `LICENSE` file with the MIT License text for legal compliance.
-- This README is designed to be comprehensive, SEO-friendly, and appealing for GitHub users, developers, and potential contributors.
+If you encounter any issues, please open an issue on [GitHub Issues](https://github.com/Raimal-Raja/AI-Powered-PDF-Document-Summarizer/issues) with detailed reproduction steps. For feature requests or questions, contact the maintainers via email or pull requests.
+.
