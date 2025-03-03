@@ -1,6 +1,7 @@
 import os
 import traceback
 
+
 try:
     import pdfplumber
     PDFPLUMBER_AVAILABLE = True
