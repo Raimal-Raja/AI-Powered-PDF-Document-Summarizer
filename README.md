@@ -2,11 +2,10 @@
 
 Flask document-summary prototype with user accounts, file upload handling, text extraction, and saved summaries.
 
-## Repository guide
+## Setup and repository reference
 
-### Contents
+### Project structure
 
-- [README.md](README.md)
 - [file_handler.py](file_handler.py)
 - [instance](instance)
 - [requirements.txt](requirements.txt)
@@ -41,9 +40,15 @@ python web_app.py
 
 ### Configuration and limitations
 
+Inspect project-specific configuration and dependencies before running. Runtime behavior was not exhaustively verified in this audit.
+
 ### Validation
 
-Reviewed on 2026-10-08. Python syntax checks passed for 5 source files. Syntax validation does not establish runtime correctness or dependency compatibility.
+Audit: 2026-10-08. Repository structure, setup instructions and description were reviewed. 7 existing Python files passed syntax checks; changed files and new regression tests were checked separately. Syntax checks do not establish full runtime correctness. External APIs, live scraping, GUI interaction, notebook training and production deployment were not comprehensively exercised.
+
+### Repository description
+
+The short GitHub description is provided in [REPOSITORY_DESCRIPTION.md](REPOSITORY_DESCRIPTION.md).
 
 ### Contributions
 
